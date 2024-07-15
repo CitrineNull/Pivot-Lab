@@ -1,0 +1,103 @@
+services:
+
+    # First target, outwards facing
+    metasploitable2:
+        image: tleemcjr/metasploitable2:latest
+        container_name: metasploitable2
+
+        tty: true
+
+        networks:
+            - middle_net
+            - outer_net
+
+        expose:
+            - 1:65535/tcp
+            - 1:65535/udp
+
+    # Second target
+    metasploitable3:
+        image: heywoodlh/vulnerable:latest
+        container_name: metasploitable3
+
+        tty: true
+
+        networks:
+            - inner_net
+            - middle_net
+
+        expose:
+            - 139/tcp
+            - 6667/tcp
+            - 8067/tcp
+            - 59668/tcp
+
+    # Final boss, only reachable via the second target
+    hackazon:
+        image: ianwijaya/hackazon
+        container_name: hackazon
+
+        networks:
+            - inner_net
+
+    # IDS needs to use host network driver to see traffic between all the containers
+    snort3:
+        build:
+            context: ./setup/
+            dockerfile: snort3.dockerfile
+        container_name: snort3
+
+        stdin_open: true
+        tty: true
+
+        security_opt:
+            - "no-new-privileges:true"
+
+        network_mode: "host"
+
+        environment:
+            - interfaces=outer_net middle_net inner_net
+
+# Three layered custom network, such that the inner network isn't directly reachable from the outer network
+networks:
+    outer_net:
+        name: outer_net
+
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: 172.24.0.0/24
+
+        driver_opts:
+            com.docker.network.bridge.name: outer_net
+            com.docker.network.container_iface_prefix: outer_net
+
+    middle_net:
+        name: middle_net
+        internal: true
+
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: 172.25.0.0/24
+
+        driver_opts:
+            com.docker.network.bridge.name: middle_net
+            com.docker.network.container_iface_prefix: middle_net
+
+    inner_net:
+        name: inner_net
+        internal: true
+
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: 172.26.0.0/24
+
+        driver_opts:
+            com.docker.network.bridge.name: inner_net
+            com.docker.network.container_iface_prefix: inner_net
+
