@@ -4,7 +4,7 @@ This is a lab to learn about various network services, how to enumerate them, an
 The lab is designed such that there are three vulnerable machines for you to test your hacking skills.
 However, to make it a bit more challenging, only one of the machines is directly reachable by the attacker (you):
 
-![Network Diagram](/docs/assets/Network Diagram.png)
+![Network Diagram](/docs/assets/Network%20Diagram.png)
 
 It's quite common in modern networks that machines will be isolated from one another by firewalls and reside in different network segments.
 To overcome this, you will need to perform lateral movement and pivot through each machine on your way to the final target.
@@ -841,11 +841,11 @@ hooking the functions and redirecting traffic to the proxies in our configuratio
 It would be much faster if the browser had native support for proxies, which Firefox does.
 Go to the network settings, and add the details for your proxy there:
 
-![Proxy Settings.png](docs/assets/Proxy Settings.png)
+![Proxy Settings.png](/docs/assets/Proxy%20Settings.png)
 
 Now you should be able to access the website at http://172.26.0.3/ (or the IP for the Hackazon server if it's different).
 
-![Hackazon.png](docs/assets/Hackazon Home Page.png)
+![Hackazon.png](/docs/assets/Hackazon%20Home%20Page.png)
 
 First thing you should do is make an account on the website.
 You can use fake details here, it doesn't matter, but being signed in gives you access to more of the website.
