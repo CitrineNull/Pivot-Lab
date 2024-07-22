@@ -27,9 +27,9 @@ Some familiarity scripting with Bash or Python, as well the basics of Metasploit
 2. Learn how to identify vulnerable services that can be exploited by using network probes.
 3. Learn how common network intrusion detection systems work
 4. Learn about the techniques used by attackers to evade NIDS systems and avoid detection
-5. Learn how common stateful firewalls such as UFW and Windows Firewall are used to control network traffic
-6. Learn how to perform horizontal lateral movement through a target network, and how it can be prevented
-7. Learn about common misconfigurations that can lead to privilege escalation
+5. Learn how to perform horizontal lateral movement through a target network
+6. Learn how to manage IP routes and proxies to manipulate traffic
+7. Learn how to use bind shells and reverse shells, and decide which is appropriate for the scenario
 
 ## Getting Started
 
