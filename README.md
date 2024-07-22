@@ -76,6 +76,16 @@ This is a networking lab, not a Metasploit exercise.
 
 # First Target
 
+Before you start, you should open the NIDS logs and keep it open on one side of your screen:
+
+```
+┌──(root㉿kali)-[/home/vagrant/Desktop]
+└─# ./show-snort-logs.sh
+```
+
+As you perform your scans, exploits and lateral movement, there may be several behaviours that get detected as suspicious by the NIDS.
+Keep an eye on what you did when these detections are triggered, and what the detections specifically mention.
+
 ## Host Discovery
 
 After starting the lab, the first target will be accessible to you on the subnet 172.24.0.0/16, but we don't know it's exact IP address.

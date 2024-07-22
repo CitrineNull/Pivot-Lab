@@ -85,7 +85,9 @@ RUN mkdir -p snort2lua/rules/disabled snort2lua/conversion &&                   
 
 COPY snort.lua /snort/etc/snort/
 COPY start-snort.sh /snort/
+
 RUN ldconfig
+RUN chmod 550 /snort/start-snort.sh
 
 # Requires the environment variable 'interfaces' to be set to an array of interface names - see compose file
 ENTRYPOINT "/snort/start-snort.sh"
