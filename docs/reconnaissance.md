@@ -761,7 +761,7 @@ For the best experience while pen-testing, the Chrome extension is our recommend
 For example, when we navigate to the [Mutillidae II](https://github.com/webpwnized/mutillidae) website deployed through [PentestLab](https://github.com/eystsen/pentestlab),
 we can see that 7 different CVEs are shown relating to the outdated version of jquery in use on the app:
 
-![img.png](resources/RetireJS.png)
+![img.png](assets/RetireJS.png)
 
 You should note that the extension only displays the javascript libraries that are currently active, and won't spider to other pages that may have other Javascript files.
 
@@ -1022,7 +1022,7 @@ To start a scan, choose one of the included wordlists (typically in /usr/share/w
 `directory-list-2.3-medium.txt` (220546 words) and `directory-list-2.3-small.txt` (87650 words) both have good results.
 For more options, you can press the `List info` button:
 
-![img.png](resources/Path%20Enumeration%201.png)
+![img.png](assets/Path%20Enumeration%201.png)
 
 You can also add extra file extensions such as `htm`, `txt`, etc., and add the blank extension as well.
 By browsing the site manually or using one of the aforementioned crawlers, you can find out what file extensions are typically found on the target site and use those.
@@ -1031,7 +1031,7 @@ Once configured, you can start the brute-force and view the results as it is sti
 Even with one thread the request speed is quite high, so you can expect this brute-force attack to produce some unusual network traffic.
 This may be detected by a NIDS or application firewall, which would quickly get you detected and/or blacklisted.
 
-![img.png](resources/Path%20Enumeration%202.png)
+![img.png](assets/Path%20Enumeration%202.png)
 
 DirBuster was successful in finding over 26,000 unique pages and directories, whereas Katana found only 150 and GoSpider around 600 for the same web application.
 This shows that despite it's rudimentary brute-force approach, DirBuster can achieve better results when the initial URL seed is minimal.
@@ -1410,7 +1410,7 @@ The `rpcbind` utility then maps RPC services to the ports on which they listen, 
 You can view the assigned RPC program numbers on the Internet Assigned Numbers Authority (IANA) page on [RPC Program Numbers](https://www.iana.org/assignments/rpc-program-numbers/rpc-program-numbers.xhtml).
 The client can then query `rpcbind` on the server with a particular program number (for example 100003 for NFS) and receive the port number on which NFS is listening on.
 
-![img.png](resources/RPC.png)
+![img.png](assets/RPC.png)
 
 You can see this for yourself using the `rpcinfo` utility, which will expose the RPC services running on the target machine:
 
@@ -1823,7 +1823,7 @@ SNMP has a simple architecture based on a client-server model:
 
 At the centre of SNMP is the Management Information Base (MIB), a tree structure hierarchy containing all queryable SNMP objects of a device, and each object has an Object Identifier (OID) (such as `1.3.6.1.2.1.1`):
 
-![img.png](resources/SNMP.png)
+![img.png](assets/SNMP.png)
 
 Each digit of the OID has significance and maps to a particular resource: for example `1.3.6.1` is `iso.org.dod.internet`.
 
@@ -2104,7 +2104,7 @@ Aside from the HTTP methods defined in the HTTP/1.0 and HTTP/1.1 specifications 
 
 To test the following techniques, the WebDAV server of the [Metasploitable 2](https://docs.rapid7.com/metasploit/metasploitable-2/) VM is used.
 
-![img.png](resources/WebDAV.png)
+![img.png](assets/WebDAV.png)
 
 
 ### Finding WebDAV Paths
